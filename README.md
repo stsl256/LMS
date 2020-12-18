@@ -1,1 +1,1 @@
-# LMS
+# LMS for Tinkoff Fintech Arch Course
