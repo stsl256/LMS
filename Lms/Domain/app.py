@@ -5,12 +5,16 @@ from config import Config
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from wtforms import Form, StringField, PasswordField, validators
+from flask_login import LoginManager, current_user, login_user
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'you-will-never-guess'
 app.config.from_object(Config)
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+login = LoginManager(app)
 
+from utils import blank_resp, RegistrationForm, LoginForm
 from Domain.Users import User
 from Domain.Courses import Course
 from Domain.Students import Student, Group
@@ -35,48 +39,54 @@ def blank_resp():
 
 def register_user_in(form):
     u = User(username=form.username.data,
+    user = User(username=form.username.data,
              email=form.email.data,
              name=form.name.data,
              surname=form.surname.data,
              second_name=form.second_name.data)
     db.session.add(u)
+    user.set_password(form.password.data)
+    db.session.add(user)
     db.session.commit()
     return 0
 
 
 @app.route('/')
-def hello_world():
-    return 'Hello World!'
-
-
-@app.route('/register', methods=['POST'])
-def register_user():
-    answer = blank_resp()
-    form = RegistrationForm(request.form)
-    if form.validate():
-        register_user_in(form)
-    else:
-        answer['status'] = 'error'
-        answer['error_message'] = str(form.errors.items())
-
-    js = json.dumps(answer)
-    resp = Response(js, status=200, mimetype='application/json')
-    return resp
-
-
-@app.route('/get_all_users', methods=['GET'])
-def get_all_users():
-    answer = blank_resp()
-
+@@ -71,12 +56,37 @@ def get_all_users():
     try:
         answer['data'] = str(User.query.all())
     except Exception as e:
+        answer['status'] = 'error'
         answer['error_message'] = str(e)
 
     js = json.dumps(answer)
     resp = Response(js, status=200, mimetype='application/json')
     return resp
 
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    answer = blank_resp()
+
+    try:
+        if current_user.is_authenticated:
+            raise Exception('User is already authenticated')
+        form = LoginForm(request.form)
+        if form.validate():
+            user = User.query.filter_by(username=form.username.data).first()
+            if user is None or not user.check_password(form.password.data):
+                raise Exception('Invalid username or password')
+            login_user(user)
+        else:
+            raise Exception(str(form.errors.items()))
+
+    except Exception as e:
+        answer['status'] = 'error'
+        answer['error_message'] = str(e)
+
+    js = json.dumps(answer)
+    resp = Response(js, status=200, mimetype='application/json')
+    return resp
 
 if __name__ == '__main__':
     app.run()

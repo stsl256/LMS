@@ -36,3 +36,4 @@ Werkzeug==0.14.1
 wrapt==1.10.11
 wtforms
 json
+flask-login=0.4.1
