@@ -13,18 +13,26 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 login = LoginManager(app)
 
-from utils import blank_resp, RegistrationForm, LoginForm, CourseForm
+from utils import blank_resp, PreliminaryRegistrationForm, LoginForm, CourseForm
 from Domain.Users import User
 from Domain.Courses import Course
 from Domain.Students import Student, Group
 from Domain.Teachers import Teacher
 
 def register_user_in(form):
-    user = User(username=form.username.data,
-             email=form.email.data,
-             name=form.name.data,
-             surname=form.surname.data,
-             second_name=form.second_name.data)
+    #TODO: упростить
+    user = User(
+        username=form.username.data,
+        email=form.email.data,
+        name=form.name.data,
+        surname=form.surname.data,
+        second_name=form.second_name.data,
+        group=form.group.data,
+        year=form.year.data,
+        degree=form.degree.data,
+        education=form.education.data,
+        basis=form.basis.data
+    )
     user.set_password(form.password.data)
     db.session.add(user)
     db.session.commit()
@@ -39,8 +47,12 @@ def hello_world():
     return 'Hello World!'
 
 
-@app.route('/register', methods=['POST'])
-def register_user():
+@app.route('/preliminary_register', methods=['POST'])
+# @login_required
+def preliminary_register_user():
+    """Администратор может добавить предопределенного пользователя (студента или преподавателя)
+    
+    """
     answer = blank_resp()
     form = RegistrationForm(request.form)
     if form.validate():
@@ -71,6 +83,9 @@ def get_all_users():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Пользователь может войти в систему по своему e-mail и паролю.
+    
+    """
     answer = blank_resp()
 
     try:
@@ -78,7 +93,7 @@ def login():
             raise Exception('User is already authenticated')
         form = LoginForm(request.form)
         if form.validate():
-            user = User.query.filter_by(username=form.username.data).first()
+            user = User.query.filter_by(email=form.email.data).first()
             if user is None or not user.check_password(form.password.data):
                 raise Exception('Invalid username or password')
             login_user(user)
@@ -98,6 +113,27 @@ def logout():
     answer = blank_resp()
     try:
         logout_user()
+    except Exception as e:
+        answer['status'] = 'error'
+        answer['error_message'] = str(e)
+
+    js = json.dumps(answer)
+    resp = Response(js, status=200, mimetype='application/json')
+    return resp
+
+
+@app.route('/user/<username>', methods=['GET', 'POST'])
+@login_required
+def user(username):
+    """Пользователь может просмотреть (GET) и отредактировать (POST) свой профиль
+    
+    """
+    answer = blank_resp()
+
+    try:
+        if request.method == 'GET':
+            user = User.query.filter_by(username=username).first_or_404()
+            answer['data'] = user.get_data();
     except Exception as e:
         answer['status'] = 'error'
         answer['error_message'] = str(e)
